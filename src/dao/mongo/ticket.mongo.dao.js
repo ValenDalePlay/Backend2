@@ -1,4 +1,4 @@
-const TicketModel = require('../../models/ticket.model');
+const TicketModel = require('../models/ticket.model');
 const DAO = require('../dao.interface');
 const { ErrorHandler, ERROR_CODES } = require('../../utils/error-handler');
 

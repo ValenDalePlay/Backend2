@@ -1,4 +1,4 @@
-const UserModel = require('../../models/user.model');
+const UserModel = require('../models/user.model');
 const DAO = require('../dao.interface');
 const { ErrorHandler, ERROR_CODES } = require('../../utils/error-handler');
 

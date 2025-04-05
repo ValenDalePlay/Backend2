@@ -1,52 +1,46 @@
 const bcrypt = require('bcrypt');
-const { userDAO } = require('../dao/dao.factory');
-const { cartDAO } = require('../dao/dao.factory');
-const { UserDTO } = require('../dto');
+const userRepository = require('../repositories/user.repository');
+const cartRepository = require('../repositories/cart.repository');
 const { ErrorHandler, ERROR_CODES } = require('../utils/error-handler');
 
 class UserService {
     async getAllUsers() {
-        const users = await userDAO.getAll();
-        return UserDTO.toResponseList(users);
+        return await userRepository.getAll();
     }
 
     async getUserById(id) {
-        const user = await userDAO.getById(id);
-        return UserDTO.toResponse(user);
+        return await userRepository.getById(id);
     }
 
     async getUserByEmail(email) {
-        const user = await userDAO.getByEmail(email);
-        return user;
+        return await userRepository.getByEmail(email);
+    }
+
+    async getCurrentUser(id) {
+        return await userRepository.getCurrentUser(id);
     }
 
     async createUser(userData) {
         // Verificamos si el usuario ya existe
         const existingUser = await this.getUserByEmail(userData.email);
         if (existingUser) {
-            throw ErrorHandler.duplicateError(
+            throw ErrorHandler.conflictError(
                 'El email ya está registrado',
                 ERROR_CODES.DUPLICATE_USER_EMAIL
             );
         }
 
-        // Preparamos los datos para persistencia
-        const userToCreate = UserDTO.toPersistence(userData);
-
         // Hasheamos la contraseña
-        userToCreate.password = bcrypt.hashSync(userToCreate.password, 10);
+        userData.password = bcrypt.hashSync(userData.password, 10);
         
         // Creamos un carrito para el usuario
-        const cart = await cartDAO.create();
+        const cart = await cartRepository.create();
         
         // Asignamos el carrito al usuario
-        userToCreate.cart = cart._id;
+        userData.cart = cart.id;
         
-        // Creamos el usuario con el carrito y la contraseña hasheada
-        const newUser = await userDAO.create(userToCreate);
-        
-        // Retornamos el usuario en formato de respuesta
-        return UserDTO.toResponse(newUser);
+        // Creamos el usuario
+        return await userRepository.create(userData);
     }
 
     async validateUser(email, password) {
@@ -64,19 +58,15 @@ class UserService {
     }
 
     async updateUser(id, userData) {
-        const updateData = UserDTO.toUpdate(userData);
-        
-        if (updateData.password) {
-            updateData.password = bcrypt.hashSync(updateData.password, 10);
+        if (userData.password) {
+            userData.password = bcrypt.hashSync(userData.password, 10);
         }
         
-        const updatedUser = await userDAO.update(id, updateData);
-        return UserDTO.toResponse(updatedUser);
+        return await userRepository.update(id, userData);
     }
 
     async deleteUser(id) {
-        const deletedUser = await userDAO.delete(id);
-        return UserDTO.toResponse(deletedUser);
+        return await userRepository.delete(id);
     }
 }
 

@@ -1,4 +1,4 @@
-const ProductModel = require('../../models/product.model');
+const ProductModel = require('../models/product.model');
 const DAO = require('../dao.interface');
 const { ErrorHandler, ERROR_CODES } = require('../../utils/error-handler');
 

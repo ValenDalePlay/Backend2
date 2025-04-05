@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const cartController = require('../controllers/cart.controller');
-const { isUser } = require('../middlewares/auth.middlewares');
+const { isAuthenticated, isCartOwner, checkRole } = require('../middlewares/auth.middlewares');
 const { validateBody, validateParam, validateArrayItems } = require('../middlewares/validator.middleware');
 const { 
     validateCartId, 
@@ -12,64 +12,72 @@ const {
     validateCartProductItem
 } = require('../validators/cart.validator');
 
-// Obtener un carrito por ID
+// Middleware de autenticación común para todas las rutas
+const auth = passport.authenticate('jwt', { session: false });
+
+// Obtener un carrito por ID (solo el dueño del carrito o administrador)
 router.get('/:cid', 
-    passport.authenticate('jwt', { session: false }),
+    auth,
     validateParam(validateCartId, 'cid'),
+    isCartOwner,
     cartController.getCartById
 );
 
-// Crear un nuevo carrito
+// Crear un nuevo carrito (público)
 router.post('/', cartController.createCart);
 
-// Agregar un producto al carrito (solo usuarios)
+// Agregar un producto al carrito (solo usuarios y dueño del carrito)
 router.post('/:cid/product/:pid', 
-    passport.authenticate('jwt', { session: false }),
-    isUser,
+    auth,
     validateParam(validateCartId, 'cid'),
     validateParam(validateProductId, 'pid'),
     validateBody(validateProductQuantity),
+    isCartOwner,
     cartController.addProductToCart
 );
 
-// Eliminar un producto del carrito
+// Eliminar un producto del carrito (solo el dueño del carrito)
 router.delete('/:cid/product/:pid', 
-    passport.authenticate('jwt', { session: false }),
+    auth,
     validateParam(validateCartId, 'cid'),
     validateParam(validateProductId, 'pid'),
+    isCartOwner,
     cartController.removeProductFromCart
 );
 
-// Actualizar el carrito con un arreglo de productos
+// Actualizar el carrito con un arreglo de productos (solo el dueño del carrito)
 router.put('/:cid', 
-    passport.authenticate('jwt', { session: false }),
+    auth,
     validateParam(validateCartId, 'cid'),
     validateBody(validateCartUpdate),
     validateArrayItems('products', validateCartProductItem),
+    isCartOwner,
     cartController.updateCart
 );
 
-// Actualizar la cantidad de un producto en el carrito
+// Actualizar la cantidad de un producto en el carrito (solo el dueño del carrito)
 router.put('/:cid/product/:pid', 
-    passport.authenticate('jwt', { session: false }),
+    auth,
     validateParam(validateCartId, 'cid'),
     validateParam(validateProductId, 'pid'),
     validateBody(validateProductQuantity),
+    isCartOwner,
     cartController.updateProductQuantity
 );
 
-// Vaciar un carrito
+// Vaciar un carrito (solo el dueño del carrito)
 router.delete('/:cid', 
-    passport.authenticate('jwt', { session: false }),
+    auth,
     validateParam(validateCartId, 'cid'),
+    isCartOwner,
     cartController.emptyCart
 );
 
-// Finalizar la compra del carrito (solo usuarios)
+// Finalizar la compra del carrito (solo el dueño del carrito)
 router.post('/:cid/purchase', 
-    passport.authenticate('jwt', { session: false }),
-    isUser,
+    auth,
     validateParam(validateCartId, 'cid'),
+    isCartOwner,
     cartController.purchaseCart
 );
 

@@ -1,35 +1,29 @@
-const ticketDAO = require('../dao/mongo/ticket.mongo.dao');
+const BaseRepository = require('./base.repository');
+const { ticketDAO } = require('../dao/dao.factory');
+const { TicketDTO } = require('../dto');
+const { ErrorHandler, ERROR_CODES } = require('../utils/error-handler');
 
-class TicketRepository {
-    async getAll() {
-        try {
-            return await ticketDAO.getAll();
-        } catch (error) {
-            throw new Error(`Error en el repositorio de ticket: ${error.message}`);
-        }
+class TicketRepository extends BaseRepository {
+    constructor() {
+        super(ticketDAO, TicketDTO);
     }
 
-    async getById(id) {
-        try {
-            return await ticketDAO.getById(id);
-        } catch (error) {
-            throw new Error(`Error en el repositorio de ticket: ${error.message}`);
-        }
-    }
-
-    async create(ticketData) {
-        try {
-            return await ticketDAO.create(ticketData);
-        } catch (error) {
-            throw new Error(`Error en el repositorio de ticket: ${error.message}`);
-        }
-    }
-
+    /**
+     * Obtener tickets por comprador
+     * @param {string} email Email del comprador
+     * @returns {Array} Lista de tickets del comprador
+     */
     async getByPurchaser(email) {
         try {
-            return await ticketDAO.getByPurchaser(email);
+            const tickets = await this.dao.getByPurchaser(email);
+            return this.dto.toResponseList(tickets);
         } catch (error) {
-            throw new Error(`Error en el repositorio de ticket: ${error.message}`);
+            if (error.name === 'AppError') throw error;
+            
+            throw ErrorHandler.databaseError(
+                `Error al obtener tickets por comprador: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 }

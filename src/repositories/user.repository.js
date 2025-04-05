@@ -1,51 +1,57 @@
-const UserDTO = require('../dto/user.dto');
-const userDAO = require('../dao/mongo/user.mongo.dao');
+const BaseRepository = require('./base.repository');
+const { userDAO } = require('../dao/dao.factory');
+const { UserDTO } = require('../dto');
+const { ErrorHandler, ERROR_CODES } = require('../utils/error-handler');
 
-class UserRepository {
-    async getById(id) {
-        try {
-            const user = await userDAO.getById(id);
-            if (!user) return null;
-            return new UserDTO(user);
-        } catch (error) {
-            throw new Error(`Error en el repositorio de usuario: ${error.message}`);
-        }
+class UserRepository extends BaseRepository {
+    constructor() {
+        super(userDAO, UserDTO);
     }
 
+    /**
+     * Buscar usuario por email
+     * @param {string} email Email del usuario
+     * @returns {Object} Usuario encontrado (sin transformar)
+     */
     async getByEmail(email) {
         try {
-            const user = await userDAO.getByEmail(email);
-            if (!user) return null;
-            return user; // No aplicamos DTO acá porque necesitamos el password para login
+            // Aquí no aplicamos DTO porque necesitamos datos como password para autenticación
+            return await this.dao.getByEmail(email);
         } catch (error) {
-            throw new Error(`Error en el repositorio de usuario: ${error.message}`);
+            if (error.name === 'AppError') throw error;
+            
+            throw ErrorHandler.databaseError(
+                `Error al buscar usuario por email: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 
-    async create(userData) {
+    /**
+     * Obtener información limitada y segura del usuario actual
+     * @param {string} id ID del usuario
+     * @returns {Object} Información limitada del usuario
+     */
+    async getCurrentUser(id) {
         try {
-            const newUser = await userDAO.create(userData);
-            return new UserDTO(newUser);
+            const user = await this.dao.getById(id);
+            
+            // Retornamos solo la información necesaria (sin password ni datos sensibles)
+            return {
+                id: user._id,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                email: user.email,
+                role: user.role,
+                cart: user.cart
+            };
         } catch (error) {
-            throw new Error(`Error en el repositorio de usuario: ${error.message}`);
-        }
-    }
-
-    async update(id, userData) {
-        try {
-            const updatedUser = await userDAO.update(id, userData);
-            if (!updatedUser) return null;
-            return new UserDTO(updatedUser);
-        } catch (error) {
-            throw new Error(`Error en el repositorio de usuario: ${error.message}`);
-        }
-    }
-
-    async delete(id) {
-        try {
-            return await userDAO.delete(id);
-        } catch (error) {
-            throw new Error(`Error en el repositorio de usuario: ${error.message}`);
+            if (error.name === 'AppError') throw error;
+            
+            throw ErrorHandler.databaseError(
+                `Error al obtener usuario actual: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 }

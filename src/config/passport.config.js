@@ -2,7 +2,7 @@ const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const JWTStrategy = require('passport-jwt').Strategy;
 const ExtractJWT = require('passport-jwt').ExtractJwt;
-const User = require('../models/user.model');
+const User = require('../dao/models/user.model');
 const bcrypt = require('bcrypt');
 
 const initializePassport = () => {

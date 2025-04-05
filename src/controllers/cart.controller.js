@@ -2,18 +2,18 @@ const cartService = require('../services/cart.service');
 const ticketService = require('../services/ticket.service');
 
 class CartController {
-    async getCartById(req, res) {
+    async getCartById(req, res, next) {
         try {
             const { cid } = req.params;
             const cart = await cartService.getCartById(cid);
             
             res.json({ status: 'success', payload: cart });
         } catch (error) {
-            res.status(404).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 
-    async createCart(req, res) {
+    async createCart(req, res, next) {
         try {
             const newCart = await cartService.createCart();
             
@@ -23,11 +23,11 @@ class CartController {
                 payload: newCart 
             });
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 
-    async addProductToCart(req, res) {
+    async addProductToCart(req, res, next) {
         try {
             const { cid, pid } = req.params;
             const { quantity = 1 } = req.body;
@@ -40,36 +40,30 @@ class CartController {
                 payload: result 
             });
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 
-    async removeProductFromCart(req, res) {
+    async removeProductFromCart(req, res, next) {
         try {
             const { cid, pid } = req.params;
             
-            await cartService.removeProductFromCart(cid, pid);
+            const updatedCart = await cartService.removeProductFromCart(cid, pid);
             
             res.json({ 
                 status: 'success', 
-                message: 'Producto eliminado del carrito exitosamente'
+                message: 'Producto eliminado del carrito exitosamente',
+                payload: updatedCart
             });
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 
-    async updateCart(req, res) {
+    async updateCart(req, res, next) {
         try {
             const { cid } = req.params;
             const { products } = req.body;
-            
-            if (!Array.isArray(products)) {
-                return res.status(400).json({ 
-                    status: 'error', 
-                    error: 'El campo products debe ser un array' 
-                });
-            }
             
             const result = await cartService.updateCart(cid, products);
             
@@ -79,21 +73,14 @@ class CartController {
                 payload: result 
             });
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 
-    async updateProductQuantity(req, res) {
+    async updateProductQuantity(req, res, next) {
         try {
             const { cid, pid } = req.params;
             const { quantity } = req.body;
-            
-            if (!quantity || quantity <= 0) {
-                return res.status(400).json({ 
-                    status: 'error', 
-                    error: 'La cantidad debe ser un número positivo' 
-                });
-            }
             
             const result = await cartService.updateProductQuantity(cid, pid, quantity);
             
@@ -103,50 +90,65 @@ class CartController {
                 payload: result 
             });
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 
-    async emptyCart(req, res) {
+    async emptyCart(req, res, next) {
         try {
             const { cid } = req.params;
             
-            await cartService.emptyCart(cid);
+            const emptyCart = await cartService.emptyCart(cid);
             
             res.json({ 
                 status: 'success', 
-                message: 'Carrito vaciado exitosamente'
+                message: 'Carrito vaciado exitosamente',
+                payload: emptyCart
             });
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 
-    async purchaseCart(req, res) {
+    async purchaseCart(req, res, next) {
         try {
             const { cid } = req.params;
             const purchaserEmail = req.user.email;
             
             const result = await ticketService.processPurchase(cid, purchaserEmail);
             
+            // Comprobar si al menos un producto fue comprado
             if (result.ticket) {
-                res.json({ 
+                // Si hay productos fallidos, informamos pero la compra fue parcialmente exitosa
+                if (result.productsFailed && result.productsFailed.length > 0) {
+                    return res.json({ 
+                        status: 'success', 
+                        message: 'Compra parcialmente completada. Algunos productos no tenían stock suficiente.',
+                        payload: {
+                            ticket: result.ticket,
+                            failedProducts: result.productsFailed
+                        }
+                    });
+                }
+                
+                // Compra completamente exitosa
+                return res.json({ 
                     status: 'success', 
                     message: 'Compra realizada exitosamente',
                     payload: {
-                        ticket: result.ticket,
-                        failedProducts: result.productsFailed
+                        ticket: result.ticket
                     }
                 });
             } else {
-                res.status(400).json({ 
+                // Ningún producto pudo ser comprado
+                return res.status(400).json({ 
                     status: 'error', 
                     error: 'No se pudo completar la compra. No hay productos disponibles en stock.',
                     failedProducts: result.productsFailed
                 });
             }
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 }

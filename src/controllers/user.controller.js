@@ -1,9 +1,9 @@
 const userService = require('../services/user.service');
 const jwt = require('jsonwebtoken');
-const UserDTO = require('../dto/user.dto');
+const { ErrorHandler } = require('../utils/error-handler');
 
 class UserController {
-    async register(req, res) {
+    async register(req, res, next) {
         try {
             const { first_name, last_name, email, age, password } = req.body;
             
@@ -28,11 +28,11 @@ class UserController {
                 payload: newUser
             });
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 
-    async login(req, res) {
+    async login(req, res, next) {
         try {
             const { email, password } = req.body;
             
@@ -46,10 +46,10 @@ class UserController {
             const user = await userService.validateUser(email, password);
             
             if (!user) {
-                return res.status(401).json({ 
-                    status: 'error', 
-                    error: 'Credenciales inválidas' 
-                });
+                throw ErrorHandler.authenticationError(
+                    'Credenciales inválidas',
+                    401
+                );
             }
 
             const token = jwt.sign(
@@ -69,23 +69,24 @@ class UserController {
                 token
             });
         } catch (error) {
-            res.status(500).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 
-    async current(req, res) {
+    async current(req, res, next) {
         try {
-            const userDTO = new UserDTO(req.user);
+            const currentUser = await userService.getCurrentUser(req.user._id);
+            
             res.json({ 
                 status: 'success', 
-                payload: userDTO 
+                payload: currentUser
             });
         } catch (error) {
-            res.status(500).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 
-    async logout(req, res) {
+    async logout(req, res, next) {
         try {
             res.clearCookie('jwt');
             res.json({ 
@@ -93,7 +94,7 @@ class UserController {
                 message: 'Logout exitoso' 
             });
         } catch (error) {
-            res.status(500).json({ status: 'error', error: error.message });
+            next(error);
         }
     }
 }

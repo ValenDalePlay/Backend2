@@ -1,4 +1,4 @@
-const CartModel = require('../../models/cart.model');
+const CartModel = require('../models/cart.model');
 const DAO = require('../dao.interface');
 const { ErrorHandler, ERROR_CODES } = require('../../utils/error-handler');
 

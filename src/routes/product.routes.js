@@ -10,6 +10,9 @@ const {
     validateProductId 
 } = require('../validators/product.validator');
 
+// Middleware de autenticación común
+const auth = passport.authenticate('jwt', { session: false });
+
 // Obtener todos los productos (público)
 router.get('/', productController.getAllProducts);
 
@@ -21,7 +24,7 @@ router.get('/:pid',
 
 // Crear un producto (solo admin)
 router.post('/', 
-    passport.authenticate('jwt', { session: false }),
+    auth,
     isAdmin,
     validateBody(validateCreateProduct),
     productController.createProduct
@@ -29,7 +32,7 @@ router.post('/',
 
 // Actualizar un producto (solo admin)
 router.put('/:pid', 
-    passport.authenticate('jwt', { session: false }),
+    auth,
     isAdmin,
     validateParam(validateProductId, 'pid'),
     validateBody(validateUpdateProduct),
@@ -38,7 +41,7 @@ router.put('/:pid',
 
 // Eliminar un producto (solo admin)
 router.delete('/:pid', 
-    passport.authenticate('jwt', { session: false }),
+    auth,
     isAdmin,
     validateParam(validateProductId, 'pid'),
     productController.deleteProduct
