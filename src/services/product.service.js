@@ -1,11 +1,17 @@
-const productRepository = require('../repositories/product.repository');
+const { productDAO } = require('../dao/dao.factory');
+const { ProductDTO } = require('../dto');
 const { ErrorHandler, ERROR_CODES } = require('../utils/error-handler');
 
 class ProductService {
     async getAllProducts(limit = 10, page = 1, sort = null, query = null) {
         try {
-            return await productRepository.getAll(limit, page, sort, query);
+            const paginatedResult = await productDAO.getAll(limit, page, sort, query);
+            // Usamos el método especializado para convertir resultados paginados
+            return ProductDTO.toPaginatedResponse(paginatedResult, '/api/products');
         } catch (error) {
+            // Si ya es un error personalizado (AppError), lo propagamos
+            if (error.name === 'AppError') throw error;
+            
             throw ErrorHandler.databaseError(
                 'Error al obtener productos',
                 ERROR_CODES.DATABASE_QUERY_ERROR,
@@ -16,25 +22,11 @@ class ProductService {
 
     async getProductById(id) {
         try {
-            const product = await productRepository.getById(id);
-            if (!product) {
-                throw ErrorHandler.notFoundError(
-                    `Producto con ID ${id} no encontrado`,
-                    ERROR_CODES.PRODUCT_NOT_FOUND
-                );
-            }
-            return product;
+            const product = await productDAO.getById(id);
+            return ProductDTO.toResponse(product);
         } catch (error) {
             // Si ya es un error personalizado, lo propagamos
-            if (error.code) throw error;
-            
-            // Si es un error de formato de ID
-            if (error.name === 'CastError' && error.kind === 'ObjectId') {
-                throw ErrorHandler.validationError(
-                    `El formato del ID "${id}" no es válido`,
-                    ERROR_CODES.INVALID_ID_FORMAT
-                );
-            }
+            if (error.name === 'AppError') throw error;
             
             throw ErrorHandler.databaseError(
                 'Error al obtener producto por ID',
@@ -46,41 +38,17 @@ class ProductService {
 
     async createProduct(productData) {
         try {
-            // Validaciones básicas
-            if (!productData.title) {
-                throw ErrorHandler.validationError(
-                    'El título del producto es obligatorio',
-                    ERROR_CODES.MISSING_REQUIRED_FIELDS
-                );
-            }
+            // Convertimos los datos a formato de persistencia
+            const productToCreate = ProductDTO.toPersistence(productData);
             
-            if (!productData.price || isNaN(productData.price) || productData.price <= 0) {
-                throw ErrorHandler.validationError(
-                    'El precio debe ser un número mayor a 0',
-                    ERROR_CODES.INVALID_PRODUCT_DATA
-                );
-            }
+            // Creamos el producto
+            const newProduct = await productDAO.create(productToCreate);
             
-            if (!productData.stock || isNaN(productData.stock) || productData.stock < 0) {
-                throw ErrorHandler.validationError(
-                    'El stock debe ser un número mayor o igual a 0',
-                    ERROR_CODES.INVALID_PRODUCT_DATA
-                );
-            }
-            
-            return await productRepository.create(productData);
+            // Retornamos la respuesta convertida a DTO
+            return ProductDTO.toResponse(newProduct);
         } catch (error) {
             // Si ya es un error personalizado, lo propagamos
-            if (error.code) throw error;
-
-            // Si es un error de duplicidad (código de producto ya existe)
-            if (error.name === 'MongoServerError' && error.code === 11000) {
-                throw ErrorHandler.validationError(
-                    'Ya existe un producto con ese código',
-                    ERROR_CODES.DUPLICATE_KEY_ERROR,
-                    { duplicateKey: 'code' }
-                );
-            }
+            if (error.name === 'AppError') throw error;
             
             throw ErrorHandler.databaseError(
                 'Error al crear producto',
@@ -92,28 +60,17 @@ class ProductService {
 
     async updateProduct(id, productData) {
         try {
-            // Primero verificamos que el producto exista
-            await this.getProductById(id);
+            // Convertimos los datos para actualización
+            const updateData = ProductDTO.toUpdate(productData);
             
-            // Validaciones básicas si hay datos de precio o stock
-            if (productData.price !== undefined && (isNaN(productData.price) || productData.price <= 0)) {
-                throw ErrorHandler.validationError(
-                    'El precio debe ser un número mayor a 0',
-                    ERROR_CODES.INVALID_PRODUCT_DATA
-                );
-            }
+            // Actualizamos el producto
+            const updatedProduct = await productDAO.update(id, updateData);
             
-            if (productData.stock !== undefined && (isNaN(productData.stock) || productData.stock < 0)) {
-                throw ErrorHandler.validationError(
-                    'El stock debe ser un número mayor o igual a 0',
-                    ERROR_CODES.INVALID_PRODUCT_DATA
-                );
-            }
-            
-            return await productRepository.update(id, productData);
+            // Retornamos la respuesta convertida a DTO
+            return ProductDTO.toResponse(updatedProduct);
         } catch (error) {
             // Si ya es un error personalizado, lo propagamos
-            if (error.code) throw error;
+            if (error.name === 'AppError') throw error;
             
             throw ErrorHandler.databaseError(
                 'Error al actualizar producto',
@@ -125,13 +82,11 @@ class ProductService {
 
     async deleteProduct(id) {
         try {
-            // Primero verificamos que el producto exista
-            await this.getProductById(id);
-            
-            return await productRepository.delete(id);
+            const deletedProduct = await productDAO.delete(id);
+            return ProductDTO.toResponse(deletedProduct);
         } catch (error) {
             // Si ya es un error personalizado, lo propagamos
-            if (error.code) throw error;
+            if (error.name === 'AppError') throw error;
             
             throw ErrorHandler.databaseError(
                 'Error al eliminar producto',

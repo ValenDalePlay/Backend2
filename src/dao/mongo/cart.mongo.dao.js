@@ -1,19 +1,90 @@
-const CartModel = require('../models/cart.model');
+const CartModel = require('../../models/cart.model');
+const DAO = require('../dao.interface');
+const { ErrorHandler, ERROR_CODES } = require('../../utils/error-handler');
 
-class CartMongoDAO {
-    async getById(id) {
+class CartMongoDAO extends DAO {
+    async getAll() {
         try {
-            return await CartModel.findById(id).populate('products.product');
+            return await CartModel.find().populate('products.product').lean();
         } catch (error) {
-            throw new Error(`Error al obtener carrito por ID: ${error.message}`);
+            throw ErrorHandler.databaseError(
+                `Error al obtener carritos: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 
-    async create() {
+    async getById(id) {
         try {
-            return await CartModel.create({ products: [] });
+            const cart = await CartModel.findById(id).populate('products.product');
+            if (!cart) {
+                throw ErrorHandler.notFoundError(
+                    `Carrito con ID ${id} no encontrado`,
+                    ERROR_CODES.CART_NOT_FOUND
+                );
+            }
+            return cart;
         } catch (error) {
-            throw new Error(`Error al crear carrito: ${error.message}`);
+            if (error.name === 'AppError') throw error;
+            throw ErrorHandler.databaseError(
+                `Error al obtener carrito por ID: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
+        }
+    }
+
+    async create(cartData = { products: [] }) {
+        try {
+            return await CartModel.create(cartData);
+        } catch (error) {
+            throw ErrorHandler.databaseError(
+                `Error al crear carrito: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
+        }
+    }
+
+    async update(id, cartData) {
+        try {
+            const updatedCart = await CartModel.findByIdAndUpdate(
+                id,
+                cartData,
+                { new: true }
+            ).populate('products.product');
+
+            if (!updatedCart) {
+                throw ErrorHandler.notFoundError(
+                    `Carrito con ID ${id} no encontrado`,
+                    ERROR_CODES.CART_NOT_FOUND
+                );
+            }
+            
+            return updatedCart;
+        } catch (error) {
+            if (error.name === 'AppError') throw error;
+            throw ErrorHandler.databaseError(
+                `Error al actualizar carrito: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
+        }
+    }
+
+    async delete(id) {
+        try {
+            const deletedCart = await CartModel.findByIdAndDelete(id);
+            if (!deletedCart) {
+                throw ErrorHandler.notFoundError(
+                    `Carrito con ID ${id} no encontrado`,
+                    ERROR_CODES.CART_NOT_FOUND
+                );
+            }
+            return deletedCart;
+        } catch (error) {
+            if (error.name === 'AppError') throw error;
+            throw ErrorHandler.databaseError(
+                `Error al eliminar carrito: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 
@@ -21,10 +92,6 @@ class CartMongoDAO {
         try {
             const cart = await this.getById(cartId);
             
-            if (!cart) {
-                throw new Error(`Carrito con ID ${cartId} no encontrado`);
-            }
-
             const productIndex = cart.products.findIndex(
                 item => item.product._id.toString() === productId
             );
@@ -39,7 +106,11 @@ class CartMongoDAO {
 
             return await cart.save();
         } catch (error) {
-            throw new Error(`Error al agregar producto al carrito: ${error.message}`);
+            if (error.name === 'AppError') throw error;
+            throw ErrorHandler.databaseError(
+                `Error al agregar producto al carrito: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 
@@ -47,29 +118,17 @@ class CartMongoDAO {
         try {
             const cart = await this.getById(cartId);
             
-            if (!cart) {
-                throw new Error(`Carrito con ID ${cartId} no encontrado`);
-            }
-
             cart.products = cart.products.filter(
                 item => item.product._id.toString() !== productId
             );
 
             return await cart.save();
         } catch (error) {
-            throw new Error(`Error al eliminar producto del carrito: ${error.message}`);
-        }
-    }
-
-    async updateCart(cartId, products) {
-        try {
-            return await CartModel.findByIdAndUpdate(
-                cartId,
-                { products },
-                { new: true }
+            if (error.name === 'AppError') throw error;
+            throw ErrorHandler.databaseError(
+                `Error al eliminar producto del carrito: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
             );
-        } catch (error) {
-            throw new Error(`Error al actualizar carrito: ${error.message}`);
         }
     }
 
@@ -77,35 +136,42 @@ class CartMongoDAO {
         try {
             const cart = await this.getById(cartId);
             
-            if (!cart) {
-                throw new Error(`Carrito con ID ${cartId} no encontrado`);
-            }
-
             const productIndex = cart.products.findIndex(
                 item => item.product._id.toString() === productId
             );
 
             if (productIndex === -1) {
-                throw new Error(`Producto con ID ${productId} no encontrado en el carrito`);
+                throw ErrorHandler.notFoundError(
+                    `Producto con ID ${productId} no encontrado en el carrito`,
+                    ERROR_CODES.PRODUCT_NOT_FOUND
+                );
             }
 
             cart.products[productIndex].quantity = quantity;
 
             return await cart.save();
         } catch (error) {
-            throw new Error(`Error al actualizar cantidad de producto: ${error.message}`);
+            if (error.name === 'AppError') throw error;
+            throw ErrorHandler.databaseError(
+                `Error al actualizar cantidad de producto: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 
     async emptyCart(cartId) {
         try {
-            return await CartModel.findByIdAndUpdate(
-                cartId,
-                { products: [] },
-                { new: true }
-            );
+            const cart = await this.getById(cartId);
+            
+            cart.products = [];
+
+            return await cart.save();
         } catch (error) {
-            throw new Error(`Error al vaciar carrito: ${error.message}`);
+            if (error.name === 'AppError') throw error;
+            throw ErrorHandler.databaseError(
+                `Error al vaciar carrito: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 }

@@ -1,6 +1,8 @@
-const ProductModel = require('../models/product.model');
+const ProductModel = require('../../models/product.model');
+const DAO = require('../dao.interface');
+const { ErrorHandler, ERROR_CODES } = require('../../utils/error-handler');
 
-class ProductMongoDAO {
+class ProductMongoDAO extends DAO {
     async getAll(limit = 10, page = 1, sort = null, query = null) {
         try {
             const options = {
@@ -17,15 +19,29 @@ class ProductMongoDAO {
 
             return await ProductModel.paginate(queryObject, options);
         } catch (error) {
-            throw new Error(`Error al obtener productos: ${error.message}`);
+            throw ErrorHandler.databaseError(
+                `Error al obtener productos: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 
     async getById(id) {
         try {
-            return await ProductModel.findById(id);
+            const product = await ProductModel.findById(id);
+            if (!product) {
+                throw ErrorHandler.notFoundError(
+                    `Producto con ID ${id} no encontrado`,
+                    ERROR_CODES.PRODUCT_NOT_FOUND
+                );
+            }
+            return product;
         } catch (error) {
-            throw new Error(`Error al obtener producto por ID: ${error.message}`);
+            if (error.name === 'AppError') throw error;
+            throw ErrorHandler.databaseError(
+                `Error al obtener producto por ID: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 
@@ -33,23 +49,60 @@ class ProductMongoDAO {
         try {
             return await ProductModel.create(productData);
         } catch (error) {
-            throw new Error(`Error al crear producto: ${error.message}`);
+            if (error.code === 11000) {
+                throw ErrorHandler.duplicateError(
+                    'El código del producto ya está en uso',
+                    ERROR_CODES.DUPLICATE_PRODUCT_CODE
+                );
+            }
+            throw ErrorHandler.databaseError(
+                `Error al crear producto: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 
     async update(id, productData) {
         try {
-            return await ProductModel.findByIdAndUpdate(id, productData, { new: true });
+            const updatedProduct = await ProductModel.findByIdAndUpdate(id, productData, { new: true });
+            if (!updatedProduct) {
+                throw ErrorHandler.notFoundError(
+                    `Producto con ID ${id} no encontrado`,
+                    ERROR_CODES.PRODUCT_NOT_FOUND
+                );
+            }
+            return updatedProduct;
         } catch (error) {
-            throw new Error(`Error al actualizar producto: ${error.message}`);
+            if (error.name === 'AppError') throw error;
+            if (error.code === 11000) {
+                throw ErrorHandler.duplicateError(
+                    'El código del producto ya está en uso',
+                    ERROR_CODES.DUPLICATE_PRODUCT_CODE
+                );
+            }
+            throw ErrorHandler.databaseError(
+                `Error al actualizar producto: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 
     async delete(id) {
         try {
-            return await ProductModel.findByIdAndDelete(id);
+            const deletedProduct = await ProductModel.findByIdAndDelete(id);
+            if (!deletedProduct) {
+                throw ErrorHandler.notFoundError(
+                    `Producto con ID ${id} no encontrado`,
+                    ERROR_CODES.PRODUCT_NOT_FOUND
+                );
+            }
+            return deletedProduct;
         } catch (error) {
-            throw new Error(`Error al eliminar producto: ${error.message}`);
+            if (error.name === 'AppError') throw error;
+            throw ErrorHandler.databaseError(
+                `Error al eliminar producto: ${error.message}`,
+                ERROR_CODES.DATABASE_ERROR
+            );
         }
     }
 }
