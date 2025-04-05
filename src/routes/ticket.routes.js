@@ -3,6 +3,8 @@ const router = express.Router();
 const passport = require('passport');
 const ticketController = require('../controllers/ticket.controller');
 const { isAdmin } = require('../middlewares/auth.middlewares');
+const { validateParam } = require('../middlewares/validator.middleware');
+const { validateTicketId } = require('../validators/ticket.validator');
 
 // Obtener todos los tickets (solo admin)
 router.get('/', 
@@ -14,6 +16,7 @@ router.get('/',
 // Obtener un ticket por ID
 router.get('/:tid', 
     passport.authenticate('jwt', { session: false }),
+    validateParam(validateTicketId, 'tid'),
     ticketController.getTicketById
 );
 
