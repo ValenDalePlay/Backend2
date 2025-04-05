@@ -5,6 +5,9 @@ const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 const initializePassport = require('./config/passport.config');
 
+// Importamos middleware de errores
+const { notFoundMiddleware, errorMiddleware } = require('./middlewares/error.middleware');
+
 // Importamos las rutas
 const userRoutes = require('./routes/user.routes');
 const productRoutes = require('./routes/product.routes');
@@ -34,13 +37,11 @@ app.use('/api/products', productRoutes);
 app.use('/api/carts', cartRoutes);
 app.use('/api/tickets', ticketRoutes);
 
-// Manejo de errores para rutas no encontradas
-app.use('*', (req, res) => {
-    res.status(404).json({
-        status: 'error',
-        error: 'Ruta no encontrada'
-    });
-});
+// Middleware para rutas no encontradas
+app.use('*', notFoundMiddleware);
+
+// Middleware para manejo de errores
+app.use(errorMiddleware);
 
 // Configuración del puerto
 const PORT = process.env.PORT || 8080;

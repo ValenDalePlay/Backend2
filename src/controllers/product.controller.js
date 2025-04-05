@@ -1,7 +1,8 @@
 const productService = require('../services/product.service');
+const { ErrorHandler, ERROR_CODES } = require('../utils/error-handler');
 
 class ProductController {
-    async getAllProducts(req, res) {
+    async getAllProducts(req, res, next) {
         try {
             const { limit = 10, page = 1, sort, query } = req.query;
             
@@ -29,31 +30,39 @@ class ProductController {
             
             res.json(response);
         } catch (error) {
-            res.status(500).json({ status: 'error', error: error.message });
+            next(ErrorHandler.databaseError('Error al obtener productos', ERROR_CODES.DATABASE_QUERY_ERROR));
         }
     }
 
-    async getProductById(req, res) {
+    async getProductById(req, res, next) {
         try {
             const { pid } = req.params;
             const product = await productService.getProductById(pid);
             
             res.json({ status: 'success', payload: product });
         } catch (error) {
-            res.status(404).json({ status: 'error', error: error.message });
+            // Si el error es que no se encuentra el producto
+            if (error.message.includes('no encontrado')) {
+                return next(ErrorHandler.notFoundError(
+                    `Producto con ID ${req.params.pid} no encontrado`,
+                    ERROR_CODES.PRODUCT_NOT_FOUND
+                ));
+            }
+            next(error);
         }
     }
 
-    async createProduct(req, res) {
+    async createProduct(req, res, next) {
         try {
             const productData = req.body;
             
             if (!productData.title || !productData.description || !productData.code || 
                 !productData.price || !productData.stock || !productData.category) {
-                return res.status(400).json({ 
-                    status: 'error', 
-                    error: 'Faltan datos obligatorios del producto' 
-                });
+                return next(ErrorHandler.validationError(
+                    'Faltan datos obligatorios del producto',
+                    ERROR_CODES.MISSING_REQUIRED_FIELDS,
+                    { requiredFields: ['title', 'description', 'code', 'price', 'stock', 'category'] }
+                ));
             }
             
             const newProduct = await productService.createProduct(productData);
@@ -64,11 +73,19 @@ class ProductController {
                 payload: newProduct 
             });
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            // Si es un error de duplicidad (código de producto ya existe)
+            if (error.name === 'MongoServerError' && error.code === 11000) {
+                return next(ErrorHandler.validationError(
+                    'Ya existe un producto con ese código',
+                    ERROR_CODES.DUPLICATE_KEY_ERROR,
+                    { duplicateKey: 'code' }
+                ));
+            }
+            next(error);
         }
     }
 
-    async updateProduct(req, res) {
+    async updateProduct(req, res, next) {
         try {
             const { pid } = req.params;
             const productData = req.body;
@@ -81,11 +98,17 @@ class ProductController {
                 payload: updatedProduct 
             });
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            if (error.message.includes('no encontrado')) {
+                return next(ErrorHandler.notFoundError(
+                    `Producto con ID ${req.params.pid} no encontrado`,
+                    ERROR_CODES.PRODUCT_NOT_FOUND
+                ));
+            }
+            next(error);
         }
     }
 
-    async deleteProduct(req, res) {
+    async deleteProduct(req, res, next) {
         try {
             const { pid } = req.params;
             await productService.deleteProduct(pid);
@@ -95,7 +118,13 @@ class ProductController {
                 message: 'Producto eliminado exitosamente'
             });
         } catch (error) {
-            res.status(400).json({ status: 'error', error: error.message });
+            if (error.message.includes('no encontrado')) {
+                return next(ErrorHandler.notFoundError(
+                    `Producto con ID ${req.params.pid} no encontrado`,
+                    ERROR_CODES.PRODUCT_NOT_FOUND
+                ));
+            }
+            next(error);
         }
     }
 }
